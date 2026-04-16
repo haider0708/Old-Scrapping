@@ -64,6 +64,52 @@ def playwright_launch_args(extra: list | None = None) -> list:
     return args
 
 
+# === Tor IP Rotation ===
+USE_TOR = os.environ.get("USE_TOR", "0") == "1"
+TOR_SOCKS_PORT = int(os.environ.get("TOR_SOCKS_PORT", "9050"))
+TOR_CONTROL_PORT = int(os.environ.get("TOR_CONTROL_PORT", "9051"))
+TOR_PASSWORD = os.environ.get("TOR_PASSWORD", "retails")
+
+
+def get_tor_proxy_url() -> Optional[str]:
+    """Return the SOCKS5 proxy URL when Tor is enabled, else None."""
+    if not USE_TOR:
+        return None
+    return f"socks5://127.0.0.1:{TOR_SOCKS_PORT}"
+
+
+def get_playwright_proxy() -> Optional[dict]:
+    """Return Playwright proxy config when Tor is enabled, else None."""
+    if not USE_TOR:
+        return None
+    return {"server": f"socks5://127.0.0.1:{TOR_SOCKS_PORT}"}
+
+
+async def rotate_tor_ip(logger: logging.Logger = None):
+    """Send NEWNYM signal to Tor control port to get a new exit IP."""
+    if not USE_TOR:
+        return
+    import socket as _socket
+    try:
+        with _socket.create_connection(("127.0.0.1", TOR_CONTROL_PORT), timeout=10) as sock:
+            sock.recv(1024)  # welcome banner
+            sock.sendall(f'AUTHENTICATE "{TOR_PASSWORD}"\r\n'.encode())
+            resp = sock.recv(1024).decode()
+            if "250" not in resp:
+                raise RuntimeError(f"Tor auth failed: {resp.strip()}")
+            sock.sendall(b"SIGNAL NEWNYM\r\n")
+            resp = sock.recv(1024).decode()
+            if "250" not in resp:
+                raise RuntimeError(f"Tor NEWNYM failed: {resp.strip()}")
+            sock.sendall(b"QUIT\r\n")
+        if logger:
+            logger.info("\U0001f504 Tor circuit rotated \u2014 new exit IP")
+        await asyncio.sleep(5)  # wait for new circuit
+    except Exception as e:
+        if logger:
+            logger.warning(f"Tor IP rotation failed: {e}")
+
+
 @dataclass
 class ScrapeStats:
     """Track scraping statistics."""
@@ -398,6 +444,7 @@ class BaseScraper(ABC):
             headers=headers,
             follow_redirects=True,
             timeout=self.request_timeout,
+            proxy=get_tor_proxy_url(),
         ) as client:
             async def fetch():
                 response = await client.get(self.base_url)
@@ -670,6 +717,7 @@ class FastScraper(ABC):
                     max_keepalive_connections=40,
                     keepalive_expiry=30.0,
                 ),
+                proxy=get_tor_proxy_url(),
             )
         return self._client
     

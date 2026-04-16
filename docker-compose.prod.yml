@@ -22,6 +22,8 @@ services:
       PIPELINE_WORKERS: ${PIPELINE_WORKERS:-16}
       PIPELINE_DETAIL_WORKERS: ${PIPELINE_DETAIL_WORKERS:-16}
       DISPLAY: ":99"
+      USE_TOR: ${USE_TOR:-1}
+      TOR_PASSWORD: ${TOR_PASSWORD:-retails}
 
     # ── Persistent storage ───────────────────────────────────────
     volumes:

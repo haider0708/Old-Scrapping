@@ -34,9 +34,9 @@ class ScoopScraper(FastScraper):
         from playwright.async_api import async_playwright
 
         async with async_playwright() as pw:
-            from scraper.base import playwright_launch_args
+            from scraper.base import playwright_launch_args, get_playwright_proxy
             browser = await pw.chromium.launch(headless=True, args=playwright_launch_args())
-            page = await browser.new_page()
+            page = await browser.new_page(proxy=get_playwright_proxy())
             await page.goto(self.base_url, wait_until="domcontentloaded", timeout=30000)
             try:
                 await page.wait_for_selector(wait_sel, timeout=15000)

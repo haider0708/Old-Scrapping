@@ -10,7 +10,7 @@ import re
 from typing import List, Optional
 from selectolax.parser import HTMLParser
 
-from scraper.base import FastScraper, playwright_launch_args
+from scraper.base import FastScraper, playwright_launch_args, get_playwright_proxy
 
 STEALTH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 STEALTH_JS = 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
@@ -39,7 +39,7 @@ class GraietScraper(FastScraper):
             headless=True,
             args=playwright_launch_args(),
         )
-        self._pw_context = await self._browser.new_context(user_agent=STEALTH_UA)
+        self._pw_context = await self._browser.new_context(user_agent=STEALTH_UA, proxy=get_playwright_proxy())
         await self._pw_context.add_init_script(STEALTH_JS)
 
     async def _close_browser(self):

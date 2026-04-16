@@ -47,6 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     # Useful for healthcheck
     curl \
+    # Tor for IP rotation (SOCKS5 proxy)
+    tor \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Copy installed Python packages from builder ───────────────────
@@ -75,8 +77,8 @@ COPY configs/   configs/
 COPY scrape.py pipeline.py track_history.py entrypoint.sh ./
 
 RUN chmod +x entrypoint.sh \
- && mkdir -p data logs \
- && chown -R appuser:appgroup /app
+ && mkdir -p data logs /tmp/tor \
+ && chown -R appuser:appgroup /app /tmp/tor
 
 # ── Volumes for persistent data ───────────────────────────────────
 VOLUME ["/app/data", "/app/logs"]

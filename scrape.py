@@ -59,7 +59,8 @@ from scraper.base import (
     BASE_DIR, DATA_DIR, LOGS_DIR,
     ScrapeStats, CategoryInfo,
     load_json, save_json, format_duration, get_date_folder,
-    save_jsonl, load_jsonl, playwright_launch_args
+    save_jsonl, load_jsonl, playwright_launch_args, get_playwright_proxy,
+    rotate_tor_ip, USE_TOR,
 )
 from scraper.sites import get_scraper, list_available_sites
 
@@ -176,7 +177,7 @@ async def scrape_categories_playwright(scraper, categories_list, num_workers, st
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context()
+                ctx = await browser.new_context(proxy=get_playwright_proxy())
                 page = await ctx.new_page()
                 try:
                     while True:
@@ -237,7 +238,7 @@ async def scrape_details_playwright(scraper, items, num_workers, pbar):
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context()
+                ctx = await browser.new_context(proxy=get_playwright_proxy())
                 page = await ctx.new_page()
                 try:
                     while True:

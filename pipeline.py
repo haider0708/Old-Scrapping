@@ -23,6 +23,7 @@ from dataclasses import dataclass, asdict
 import yaml
 
 from scraper.base import LOGS_DIR
+from scraper.base import rotate_tor_ip
 from scrape import run_full_scrape, setup_logger
 from track_history import track_history_for_shop
 
@@ -198,6 +199,7 @@ class SimplePipeline:
 
             for site in self.sites:
                 try:
+                    await rotate_tor_ip(self.logger)
                     await self._process_site(site)
                 except Exception as e:
                     # Belt-and-suspenders: _process_site should never raise,

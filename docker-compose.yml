@@ -16,6 +16,9 @@ services:
       PIPELINE_DETAIL_WORKERS: ${PIPELINE_DETAIL_WORKERS:-16}
       # Chromium needs a display; Xvfb provides it inside the container
       DISPLAY: ":99"
+      # Tor IP rotation (set USE_TOR=1 to enable)
+      USE_TOR: ${USE_TOR:-1}
+      TOR_PASSWORD: ${TOR_PASSWORD:-retails}
 
     # ── Persistent storage ───────────────────────────────────────
     volumes:
