@@ -245,51 +245,27 @@ class MytekScraper(BaseScraper):
         - specifications table
         - images, stock status, store availability
         """
-        # Retry logic for product pages (some may fail to load)
         max_retries = 2
         last_error = None
 
         for attempt in range(max_retries + 1):
             try:
-                # Faster but more reliable loading - wait for networkidle
-                await page.goto(product_url, wait_until="networkidle", timeout=20000)
+                await page.goto(product_url, wait_until="domcontentloaded", timeout=15000)
 
-                # Quick wait for critical elements to appear
+                # Single short wait for critical content to be present in DOM
                 try:
-                    await page.wait_for_selector('.page-title-wrapper h1, [data-product-id]', timeout=5000)
-                except:
-                    pass  # Continue even if title doesn't load immediately
-
-                # Wait for price data to load
-                try:
-                    await page.wait_for_selector('meta[itemprop="price"], [data-price-type]', timeout=3000)
+                    await page.wait_for_selector('.page-title-wrapper h1, meta[itemprop="price"]', timeout=3000)
                 except:
                     pass
 
-                # Wait for stock status (critical for availability)
-                try:
-                    await page.wait_for_selector('[data-role="stockStatus"], .stock.available, .stock.unavailable, [itemprop="availability"]',
-                                                 timeout=4000, state='attached')
-                except:
-                    pass
-
-                # Wait for store availability table (optional, don't wait too long)
-                try:
-                    await page.wait_for_selector('.tab_retrait_mag', timeout=3000, state='attached')
-                    await page.wait_for_timeout(500)  # Brief wait for AJAX content
-                except:
-                    pass
-
-                # If we get here, page loaded successfully
                 break
 
             except Exception as e:
                 last_error = str(e)
                 if attempt < max_retries:
-                    await page.wait_for_timeout(1000)  # Brief wait before retry
+                    await page.wait_for_timeout(500)
                     continue
                 else:
-                    # All retries failed
                     return {
                         "url": product_url,
                         "error": f"Page load failed after {max_retries + 1} attempts: {last_error}",

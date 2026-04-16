@@ -29,9 +29,14 @@ def _unraisable_hook(unraisable):
         for phrase in ("I/O operation on closed pipe", "Event loop is closed")
     ):
         return  # silently ignore Playwright subprocess cleanup noise
+    # Suppress TargetClosedError from dangling Playwright futures on timeout
+    exc_name = type(unraisable.exc_value).__name__ if unraisable.exc_value else ""
+    if exc_name in ("TargetClosedError", "Error") and "Target closed" in str(unraisable.exc_value):
+        return
     _orig_unraisablehook(unraisable)
 
 sys.unraisablehook = _unraisable_hook
+
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -178,8 +183,11 @@ async def scrape_categories_playwright(scraper, categories_list, num_workers, st
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
-                page = await ctx.new_page()
+                try:
+                    ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
+                    page = await ctx.new_page()
+                except Exception:
+                    return
                 try:
                     while True:
                         try:
@@ -198,13 +206,21 @@ async def scrape_categories_playwright(scraper, categories_list, num_workers, st
                                 pbar.update(1)
                             queue.task_done()
                 finally:
-                    await page.close()
-                    await ctx.close()
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+                    try:
+                        await ctx.close()
+                    except Exception:
+                        pass
 
-            await asyncio.gather(*[worker(i) for i in range(num_workers)])
-            await queue.join()
+            await asyncio.gather(*[worker(i) for i in range(num_workers)], return_exceptions=True)
         finally:
-            await browser.close()
+            try:
+                await browser.close()
+            except Exception:
+                pass
     return results
 
 
@@ -240,8 +256,11 @@ async def scrape_details_playwright(scraper, items, num_workers, pbar):
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
-                page = await ctx.new_page()
+                try:
+                    ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
+                    page = await ctx.new_page()
+                except Exception:
+                    return
                 try:
                     while True:
                         try:
@@ -261,20 +280,42 @@ async def scrape_details_playwright(scraper, items, num_workers, pbar):
                                 pbar.update(1)
                             queue.task_done()
                 finally:
-                    await page.close()
-                    await ctx.close()
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+                    try:
+                        await ctx.close()
+                    except Exception:
+                        pass
 
-            await asyncio.gather(*[worker(i) for i in range(num_workers)])
-            await queue.join()
+            await asyncio.gather(*[worker(i) for i in range(num_workers)], return_exceptions=True)
         finally:
-            await browser.close()
+            try:
+                await browser.close()
+            except Exception:
+                pass
     return results
 
 
 async def run_full_scrape(site_name, num_workers=16, detail_workers=16, limit=None, logger=None, scrape_details=True, category_filter=None):
     if logger is None:
         logger = setup_logger(site_name)
-    
+
+    # Suppress "Future exception was never retrieved" for TargetClosedError
+    # These fire when asyncio.wait_for cancels mid-Playwright operation
+    loop = asyncio.get_running_loop()
+    _prev_handler = loop.get_exception_handler()
+    def _quiet_handler(l, ctx):
+        exc = ctx.get("exception")
+        if exc and "Target closed" in str(exc):
+            return
+        if _prev_handler:
+            _prev_handler(l, ctx)
+        else:
+            l.default_exception_handler(ctx)
+    loop.set_exception_handler(_quiet_handler)
+
     start_time = time.time()
     ts = get_date_folder()
     result = {"site": site_name, "success": False, "error": None, "stats": None, "output_path": None, "duration_seconds": 0}
