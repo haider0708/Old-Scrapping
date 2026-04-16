@@ -33,13 +33,16 @@ class ExpertGamingScraper(FastScraper):
             from scraper.base import playwright_launch_args, get_playwright_proxy
             browser = await pw.chromium.launch(headless=True, args=playwright_launch_args())
             page = await browser.new_page(proxy=get_playwright_proxy())
-            await page.goto(self.base_url, wait_until="domcontentloaded", timeout=30000)
             try:
-                await page.wait_for_selector("ul#menu-notre-boutique", state="attached", timeout=10000)
-            except Exception:
-                self.logger.warning("Menu selector not found, continuing with page content")
-            html = await page.content()
-            await browser.close()
+                await page.goto(self.base_url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    await page.wait_for_selector("ul#menu-notre-boutique", state="attached", timeout=10000)
+                except Exception:
+                    self.logger.warning("Menu selector not found, continuing with page content")
+                html = await page.content()
+            finally:
+                await page.close()
+                await browser.close()
 
         output_path.write_text(html, encoding="utf-8")
         self.logger.info(f"✓ Saved: {output_path} ({len(html):,} bytes)")

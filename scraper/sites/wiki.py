@@ -9,7 +9,7 @@ import re
 from typing import List, Optional
 from selectolax.parser import HTMLParser
 
-from scraper.base import FastScraper, playwright_launch_args, get_playwright_proxy
+from scraper.base import FastScraper, playwright_launch_args, TorPool
 
 STEALTH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 STEALTH_JS = 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
@@ -23,6 +23,7 @@ class WikiScraper(FastScraper):
         self._pw = None
         self._browser = None
         self._pw_context = None
+        self._tor_slot = hash("wiki") % max(TorPool.get().size, 1)
 
     # ------------------------------------------------------------------
     # Shared Playwright browser (lazy init, reused across all fetches)
@@ -42,7 +43,8 @@ class WikiScraper(FastScraper):
             headless=False,
             args=playwright_launch_args(["--headless=new"]),
         )
-        self._pw_context = await self._browser.new_context(user_agent=STEALTH_UA, proxy=get_playwright_proxy())
+        pool = TorPool.get()
+        self._pw_context = await self._browser.new_context(user_agent=STEALTH_UA, proxy=pool.pw_proxy(self._tor_slot))
         await self._pw_context.add_init_script(STEALTH_JS)
 
     async def _close_browser(self):
