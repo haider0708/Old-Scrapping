@@ -24,6 +24,8 @@ services:
       DISPLAY: ":99"
       USE_TOR: ${USE_TOR:-1}
       TOR_PASSWORD: ${TOR_PASSWORD:-retails}
+      TOR_INSTANCES: ${TOR_INSTANCES:-8}
+      TOR_ROTATE_EVERY: ${TOR_ROTATE_EVERY:-50}
 
     # ── Persistent storage ───────────────────────────────────────
     volumes:

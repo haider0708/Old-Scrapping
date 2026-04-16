@@ -59,8 +59,8 @@ from scraper.base import (
     BASE_DIR, DATA_DIR, LOGS_DIR,
     ScrapeStats, CategoryInfo,
     load_json, save_json, format_duration, get_date_folder,
-    save_jsonl, load_jsonl, playwright_launch_args, get_playwright_proxy,
-    rotate_tor_ip, USE_TOR,
+    save_jsonl, load_jsonl, playwright_launch_args,
+    rotate_tor_ip, USE_TOR, TorPool,
 )
 from scraper.sites import get_scraper, list_available_sites
 
@@ -169,6 +169,7 @@ async def scrape_categories_fast(scraper, categories_list, num_workers, pbar, on
 async def scrape_categories_playwright(scraper, categories_list, num_workers, stats, pbar):
     from playwright.async_api import async_playwright
     results = {}
+    pool = TorPool.get()
     queue = asyncio.Queue()
     for c in categories_list:
         await queue.put(c)
@@ -177,7 +178,7 @@ async def scrape_categories_playwright(scraper, categories_list, num_workers, st
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context(proxy=get_playwright_proxy())
+                ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
                 page = await ctx.new_page()
                 try:
                     while True:
@@ -230,6 +231,7 @@ async def scrape_details_fast(scraper, items, num_workers, pbar):
 async def scrape_details_playwright(scraper, items, num_workers, pbar):
     from playwright.async_api import async_playwright
     results = {}
+    pool = TorPool.get()
     queue = asyncio.Queue()
     for i in items:
         await queue.put(i)
@@ -238,7 +240,7 @@ async def scrape_details_playwright(scraper, items, num_workers, pbar):
         browser = await p.chromium.launch(headless=True, args=playwright_launch_args())
         try:
             async def worker(wid):
-                ctx = await browser.new_context(proxy=get_playwright_proxy())
+                ctx = await browser.new_context(proxy=pool.pw_proxy(wid))
                 page = await ctx.new_page()
                 try:
                     while True:

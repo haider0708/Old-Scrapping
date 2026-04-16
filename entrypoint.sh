@@ -20,30 +20,38 @@ else
     echo "[entrypoint] Xvfb not found — running without virtual display"
 fi
 
-# ── Start Tor if USE_TOR is enabled ───────────────────────────────
+# ── Start Tor pool if USE_TOR is enabled ──────────────────────────
+TOR_PIDS=""
 if [ "${USE_TOR:-0}" = "1" ] && command -v tor &>/dev/null; then
     TOR_PASSWORD="${TOR_PASSWORD:-retails}"
-    TOR_SOCKS_PORT="${TOR_SOCKS_PORT:-9050}"
-    TOR_CONTROL_PORT="${TOR_CONTROL_PORT:-9051}"
-    TOR_DATA_DIR="/tmp/tor"
-    mkdir -p "$TOR_DATA_DIR"
+    TOR_BASE_SOCKS="${TOR_SOCKS_PORT:-9050}"
+    TOR_BASE_CONTROL="${TOR_CONTROL_PORT:-9051}"
+    TOR_NUM="${TOR_INSTANCES:-8}"
 
     HASHED_PASS=$(tor --hash-password "$TOR_PASSWORD" | tail -1)
 
-    cat > /tmp/torrc <<TOREOF
-SocksPort ${TOR_SOCKS_PORT}
-ControlPort ${TOR_CONTROL_PORT}
+    for i in $(seq 0 $((TOR_NUM - 1))); do
+        SOCKS_PORT=$((TOR_BASE_SOCKS + i * 2))
+        CTRL_PORT=$((TOR_BASE_CONTROL + i * 2))
+        DATA_DIR="/tmp/tor/instance_${i}"
+        mkdir -p "$DATA_DIR"
+
+        cat > "/tmp/torrc_${i}" <<TOREOF
+SocksPort ${SOCKS_PORT}
+ControlPort ${CTRL_PORT}
 HashedControlPassword ${HASHED_PASS}
-DataDirectory ${TOR_DATA_DIR}
-Log notice stderr
+DataDirectory ${DATA_DIR}
+Log warn stderr
 TOREOF
 
-    tor -f /tmp/torrc &
-    TOR_PID=$!
-    echo "[entrypoint] Tor starting (PID ${TOR_PID})..."
-    # Wait for Tor to bootstrap (connect to the network)
-    sleep 10
-    echo "[entrypoint] Tor ready on SOCKS=${TOR_SOCKS_PORT}, Control=${TOR_CONTROL_PORT}"
+        tor -f "/tmp/torrc_${i}" &
+        TOR_PIDS="${TOR_PIDS} $!"
+        echo "[entrypoint] Tor instance ${i}: SOCKS=${SOCKS_PORT} Control=${CTRL_PORT}"
+    done
+
+    echo "[entrypoint] Waiting for ${TOR_NUM} Tor instances to bootstrap..."
+    sleep 15
+    echo "[entrypoint] Tor pool ready (${TOR_NUM} instances)"
 elif [ "${USE_TOR:-0}" = "1" ]; then
     echo "[entrypoint] WARNING: USE_TOR=1 but tor binary not found!"
 fi
@@ -53,9 +61,9 @@ _shutdown() {
     echo "[entrypoint] Received shutdown signal — stopping Python process..."
     kill -TERM "$CHILD_PID" 2>/dev/null || true
     wait "$CHILD_PID" 2>/dev/null || true
-    if [ -n "${TOR_PID:-}" ]; then
-        kill -TERM "$TOR_PID" 2>/dev/null || true
-    fi
+    for pid in $TOR_PIDS; do
+        kill -TERM "$pid" 2>/dev/null || true
+    done
     if [ -n "${XVFB_PID:-}" ]; then
         kill -TERM "$XVFB_PID" 2>/dev/null || true
     fi

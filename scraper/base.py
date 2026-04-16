@@ -64,50 +64,123 @@ def playwright_launch_args(extra: list | None = None) -> list:
     return args
 
 
-# === Tor IP Rotation ===
+# === Tor IP Rotation (Multi-Instance Pool) ===
 USE_TOR = os.environ.get("USE_TOR", "0") == "1"
 TOR_SOCKS_PORT = int(os.environ.get("TOR_SOCKS_PORT", "9050"))
 TOR_CONTROL_PORT = int(os.environ.get("TOR_CONTROL_PORT", "9051"))
 TOR_PASSWORD = os.environ.get("TOR_PASSWORD", "retails")
+TOR_INSTANCES = int(os.environ.get("TOR_INSTANCES", "8"))
+TOR_ROTATE_EVERY = int(os.environ.get("TOR_ROTATE_EVERY", "50"))
 
 
+class TorPool:
+    """Pool of N Tor SOCKS5 proxies for parallel anonymous scraping.
+
+    Each Tor daemon runs on its own SOCKS/control port pair (spaced by 2):
+        Instance 0  →  SOCKS 9050, Control 9051
+        Instance 1  →  SOCKS 9052, Control 9053
+        ...
+    Workers are round-robin assigned to instances so concurrent requests
+    exit through different IPs.  Every TOR_ROTATE_EVERY requests the
+    instance's circuit is rotated via NEWNYM.
+    """
+
+    _instance: Optional["TorPool"] = None
+
+    def __init__(self):
+        self.size = TOR_INSTANCES if USE_TOR else 0
+        self._counter = 0
+        self._lock = asyncio.Lock()
+        self._req_counts = [0] * max(self.size, 1)
+
+    @classmethod
+    def get(cls) -> "TorPool":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def socks_port(self, slot: int) -> int:
+        return TOR_SOCKS_PORT + (slot % self.size) * 2
+
+    def control_port(self, slot: int) -> int:
+        return TOR_CONTROL_PORT + (slot % self.size) * 2
+
+    def proxy_url(self, slot: int) -> Optional[str]:
+        if not USE_TOR:
+            return None
+        return f"socks5://127.0.0.1:{self.socks_port(slot)}"
+
+    def pw_proxy(self, slot: int) -> Optional[dict]:
+        if not USE_TOR:
+            return None
+        return {"server": f"socks5://127.0.0.1:{self.socks_port(slot)}"}
+
+    async def next_slot(self) -> int:
+        async with self._lock:
+            slot = self._counter % max(self.size, 1)
+            self._counter += 1
+        return slot
+
+    async def track_request(self, slot: int, logger: logging.Logger = None):
+        """Increment counter for *slot*; rotate its circuit at threshold."""
+        if not USE_TOR:
+            return
+        idx = slot % self.size
+        self._req_counts[idx] += 1
+        if self._req_counts[idx] >= TOR_ROTATE_EVERY:
+            self._req_counts[idx] = 0
+            await self._send_newnym(idx, logger)
+
+    async def rotate_all(self, logger: logging.Logger = None):
+        """Rotate every Tor instance to a fresh circuit."""
+        if not USE_TOR:
+            return
+        for i in range(self.size):
+            await self._send_newnym(i, logger)
+        if logger:
+            logger.info(f"\U0001f504 All {self.size} Tor circuits rotated")
+        await asyncio.sleep(5)
+
+    async def _send_newnym(self, idx: int, logger: logging.Logger = None):
+        import socket as _socket
+        port = self.control_port(idx)
+        try:
+            with _socket.create_connection(("127.0.0.1", port), timeout=10) as sock:
+                sock.recv(1024)
+                sock.sendall(f'AUTHENTICATE "{TOR_PASSWORD}"\r\n'.encode())
+                resp = sock.recv(1024).decode()
+                if "250" not in resp:
+                    raise RuntimeError(f"Tor auth failed on port {port}: {resp.strip()}")
+                sock.sendall(b"SIGNAL NEWNYM\r\n")
+                resp = sock.recv(1024).decode()
+                if "250" not in resp:
+                    raise RuntimeError(f"NEWNYM failed on port {port}: {resp.strip()}")
+                sock.sendall(b"QUIT\r\n")
+            if logger:
+                logger.debug(f"Tor instance {idx} (:{port}) rotated")
+        except Exception as e:
+            if logger:
+                logger.warning(f"Tor rotation failed for instance {idx}: {e}")
+
+
+# ── Thin wrappers kept for backwards compatibility with site scrapers ─
 def get_tor_proxy_url() -> Optional[str]:
-    """Return the SOCKS5 proxy URL when Tor is enabled, else None."""
+    """Return a SOCKS5 proxy URL (slot 0). Site scrapers use this."""
     if not USE_TOR:
         return None
-    return f"socks5://127.0.0.1:{TOR_SOCKS_PORT}"
+    return TorPool.get().proxy_url(0)
 
 
 def get_playwright_proxy() -> Optional[dict]:
-    """Return Playwright proxy config when Tor is enabled, else None."""
+    """Return Playwright proxy dict (slot 0). Site scrapers use this."""
     if not USE_TOR:
         return None
-    return {"server": f"socks5://127.0.0.1:{TOR_SOCKS_PORT}"}
+    return TorPool.get().pw_proxy(0)
 
 
 async def rotate_tor_ip(logger: logging.Logger = None):
-    """Send NEWNYM signal to Tor control port to get a new exit IP."""
-    if not USE_TOR:
-        return
-    import socket as _socket
-    try:
-        with _socket.create_connection(("127.0.0.1", TOR_CONTROL_PORT), timeout=10) as sock:
-            sock.recv(1024)  # welcome banner
-            sock.sendall(f'AUTHENTICATE "{TOR_PASSWORD}"\r\n'.encode())
-            resp = sock.recv(1024).decode()
-            if "250" not in resp:
-                raise RuntimeError(f"Tor auth failed: {resp.strip()}")
-            sock.sendall(b"SIGNAL NEWNYM\r\n")
-            resp = sock.recv(1024).decode()
-            if "250" not in resp:
-                raise RuntimeError(f"Tor NEWNYM failed: {resp.strip()}")
-            sock.sendall(b"QUIT\r\n")
-        if logger:
-            logger.info("\U0001f504 Tor circuit rotated \u2014 new exit IP")
-        await asyncio.sleep(5)  # wait for new circuit
-    except Exception as e:
-        if logger:
-            logger.warning(f"Tor IP rotation failed: {e}")
+    """Rotate all Tor instances — called between sites by pipeline."""
+    await TorPool.get().rotate_all(logger)
 
 
 @dataclass
@@ -440,11 +513,13 @@ class BaseScraper(ABC):
         
         # Create the client once outside the retry closure so the same TCP
         # connection is reused across retries rather than reconnecting each time.
+        pool = TorPool.get()
+        slot = await pool.next_slot() if USE_TOR else 0
         async with httpx.AsyncClient(
             headers=headers,
             follow_redirects=True,
             timeout=self.request_timeout,
-            proxy=get_tor_proxy_url(),
+            proxy=pool.proxy_url(slot),
         ) as client:
             async def fetch():
                 response = await client.get(self.base_url)
@@ -677,8 +752,8 @@ class FastScraper(ABC):
         self._base_data_dir.mkdir(parents=True, exist_ok=True)
         self._current_data_dir = None  # Can be set to use specific folder
         
-        # HTTP client (lazy initialization)
-        self._client: Optional[httpx.AsyncClient] = None
+        # HTTP clients — one per Tor instance (or a single direct client)
+        self._clients: Dict[int, httpx.AsyncClient] = {}
     
     @property
     def data_dir(self) -> Path:
@@ -705,10 +780,13 @@ class FastScraper(ABC):
     def selectors(self) -> dict:
         return self.config.get("selectors", {})
     
-    async def get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client with proper timeout and connection pool."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
+    async def get_client(self, slot: int = 0) -> httpx.AsyncClient:
+        """Get or create HTTP client for a given Tor slot."""
+        pool = TorPool.get()
+        proxy = pool.proxy_url(slot) if USE_TOR else None
+        key = slot if USE_TOR else 0
+        if key not in self._clients or self._clients[key].is_closed:
+            self._clients[key] = httpx.AsyncClient(
                 headers=self.headers,
                 follow_redirects=True,
                 timeout=httpx.Timeout(self.request_timeout, connect=10.0),
@@ -717,22 +795,24 @@ class FastScraper(ABC):
                     max_keepalive_connections=40,
                     keepalive_expiry=30.0,
                 ),
-                proxy=get_tor_proxy_url(),
+                proxy=proxy,
             )
-        return self._client
+        return self._clients[key]
     
     async def close(self):
-        """Close HTTP client gracefully."""
-        if self._client and not self._client.is_closed:
-            try:
-                await self._client.aclose()
-            except Exception:
-                pass
-            self._client = None
+        """Close all HTTP clients gracefully."""
+        for client in self._clients.values():
+            if client and not client.is_closed:
+                try:
+                    await client.aclose()
+                except Exception:
+                    pass
+        self._clients.clear()
     
     async def fetch_html(self, url: str, raise_on_error: bool = False) -> Optional[str]:
         """
         Fetch HTML content from URL with retry logic.
+        Each call is routed through a different Tor instance (round-robin).
         
         Args:
             url: URL to fetch
@@ -741,7 +821,11 @@ class FastScraper(ABC):
         Returns:
             HTML content or None on failure
         """
-        client = await self.get_client()
+        pool = TorPool.get()
+        slot = await pool.next_slot() if USE_TOR else 0
+        client = await self.get_client(slot)
+        # Auto-rotate circuit after every TOR_ROTATE_EVERY requests
+        await pool.track_request(slot, self.logger)
         last_exception = None
         
         for attempt in range(1, self.retry_config.max_retries + 1):
