@@ -1,0 +1,47 @@
+# Zoom.com.tn Scraper Configuration
+site_name: "zoom"
+base_url: "https://zoom.com.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    main_containers: "li.mm_tabs_li.mm_tabs_has_content"
+    main_link: ".mm_tab_toggle_title a"
+    category_blocks: ".ets_mm_block.mm_block_type_category"
+    block_header: "span.h4 a"
+    level2_items: ".ets_mm_categories li"
+    level3_links: "ul li a"
+
+  category_page:
+    item_selector: ".product-miniature.js-product-miniature"
+    product_id_attr: "data-id-product"
+    product_link: "h5.product-name a"
+    product_title: "h5.product-name a"
+    product_availability: ".product-availability span"
+    product_price: ".price.product-price"
+    product_old_price: ".regular-price"
+    product_image: "img"
+    product_image_attrs: ["data-original", "data-src", "src"]
+    pagination_container: ".pagination, .pager"
+    pagination_current: ".current, .active, [aria-current='page']"
+    pagination_next: ".next, .pagination-next, [rel='next']"
+    pagination_param: "page"
+
+  product_page:
+    title: "h1, .product-name, .page-title"
+    product_id_pattern: "/(\\d+)"
+    price: ".current-price, .price, [itemprop='price']"
+    old_price: ".old-price, .regular-price"
+    availability: ".product-availability span, .product-availability.product-available"
+    availability_fallback: ".product-availability"
+    brand: ".attribute-item.product-manufacturer a.li-a span"
+    brand_fallback: ".product-brand, .brand"
+    sku: ".product-reference span"
+    overview_pattern: "#product-description-short-{product_id}"
+    description: ".product-description, .description, #description"
+    images: ".product-images img, .gallery img, .product-gallery img"
+    specs_dl: "dl"

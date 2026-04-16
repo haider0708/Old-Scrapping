@@ -1,0 +1,43 @@
+# Pipeline Configuration
+# =====================
+
+# Sites to process (in order)
+sites:
+  - mytek
+  - tunisianet
+  - technopro
+  - spacenet
+  - jumbo
+  - darty
+  - graiet
+  - batam
+  - zoom
+  - allani
+  - expert_gaming
+  - geant
+  - mapara
+  - parafendri
+  - parashop
+  - pharmacieplus
+  - pharmashop
+  - sbs
+  - scoop
+  - skymill
+  - wiki
+
+# Interval between pipeline runs (in minutes)
+# 720 = 12 hours (recommended for production)
+interval_minutes: 1440
+  
+# Data directory
+data_dir: "data"
+
+# Scraping Settings
+# -----------------
+scraping:
+  # Number of parallel workers for product scraping
+  workers: 16
+
+  # Number of parallel workers for detail scraping
+  detail_workers: 16
+

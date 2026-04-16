@@ -1,0 +1,50 @@
+# Graiet.tn Scraper Configuration
+site_name: "graiet"
+base_url: "https://www.graiet.tn"
+
+headers:
+  Accept-Language: "fr-FR,fr;q=0.9,en;q=0.8"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    top_level_blocks: "ul.horizontal-list > li.ui-menu-item.level0"
+    top_level_name: "a.level-top > span"
+    top_level_link: "a.level-top"
+    subcategory_blocks: "ul.subchildmenu > li.ui-menu-item.level1"
+
+  category_page:
+    item_selector: "li.item.product.product-item"
+    product_id_selector: "div.product-item-info"
+    product_id_attr: "id"
+    product_link: "a.product-item-link"
+    product_title: "a.product-item-link"
+    product_price: ".price-wrapper .price"
+    product_image: ".products-image-hover"
+    pagination_param: "p"
+    pagination_current: "li.item.current"
+    pagination_links: "ul.pages-items li.item a.page"
+
+  product_page:
+    title: "h1.page-title span.base"
+    sku: "div.product.attribute.sku div.value"
+    price: "span[data-price-amount]"
+    price_attr: "data-price-amount"
+    old_price: ".old-price, .regular-price"
+    brand_container: "div.product-page-brand-common-view"
+    brand_item: "li.brand-item"
+    description: "div.product.attribute.overview div.value"
+    availability: "div.stock.available, div.stock.unavailable"
+    specs_table: "table#product-attribute-specs-table tbody tr"
+    specs_name: "th.col.label"
+    specs_value: "td.col.data"
+    main_image: "meta[itemprop='image']"
+    main_image_attr: "content"
+    gallery_slides: ".gallery-images .slick-slide"
+    gallery_img_container: ".gallery-img"
+    gallery_img: "img.product-image-photo, img.product-image"
+    thumb_slides: ".p-thumb-nav .slick-slide"

@@ -1,0 +1,51 @@
+# Jumbo.tn Scraper Configuration
+site_name: "jumbo"
+base_url: "https://www.jumbo.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    menu_container: "#header_menu"
+    top_level_blocks: "#header_menu li.mm_tabs_li.mm_tabs_has_content"
+    top_level_link: ".mm_tab_toggle_title a.ets_mm_url"
+    low_level_blocks: ".ets_mm_block.mm_block_type_category"
+    low_level_header: "span.h4"
+    low_level_header_link: "span.h4 a"
+    category_list: "ul.ets_mm_categories"
+    subcategory_link: "a.ets_mm_url"
+
+  category_page:
+    item_selector: "article[data-id-product]"
+    product_id_attr: "data-id-product"
+    product_link: 'a[href*=".html"]'
+    product_title: "h3 a"
+    product_title_fallback: "h3"
+    product_price: ".ce-product-price span"
+    product_old_price: ".ce-product-price-regular"
+    product_availability: ".ce-product-stock__availability-label"
+    product_image: ".elementor-widget-image img, .elementor-widget-product-miniature-image img"
+    product_image_fallback: "img"
+    pagination_next: 'a.next, .pagination a[rel="next"]'
+    pagination_links: ".pagination a, .page-list a"
+    pagination_param: "page"
+
+  product_page:
+    title: ".ce-product-name"
+    title_fallback: "h1"
+    product_id_pattern: "product-id-(\\d+)"
+    product_id_source: "body_class"
+    sku: ".ce-product-meta__reference .ce-product-meta__value"
+    overview: ".ce-product-description-short"
+    brand_img: ".elementor-widget-manufacturer-image img"
+    json_ld: 'script[type="application/ld+json"]'
+    price: ".ce-product-price span"
+    old_price: ".ce-product-regular-price span"
+    availability: ".ce-product-stock__availability-label"
+    images: ".swiper-zoom-container img"
+    specs_container: ".ce-product-features__row"
+    specs_label: ".ce-product-features__label"
+    specs_value: ".ce-product-features__value"

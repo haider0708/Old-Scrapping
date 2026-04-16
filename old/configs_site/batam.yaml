@@ -1,0 +1,45 @@
+# Batam.com.tn Scraper Configuration
+site_name: "batam"
+base_url: "https://www.batam.com.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    top_level_blocks: "li.level-0.parent-ul-list"
+    top_level_name: "button.level-0 span.text-left"
+    top_level_link: "ul.level-1 > li > a.font-bold"
+    low_level_button: "button[title]"
+    low_level_submenu: "ul.level-2"
+    subcategory_link: "a[href]"
+    skip_keywords: ["promo", "spécial", "special", "offre", "remise"]
+
+  category_page:
+    item_selector: "form.product_addtocart_form"
+    product_link: "a.product-item-link"
+    product_price: "[data-price-type='finalPrice'] .price"
+    product_old_price: "[data-price-type='oldPrice'] .price"
+    product_image: "img.product-image-photo"
+    product_id_input: "input[type='hidden'][name='product']"
+    availability_in_stock: "span.text-green-500"
+    availability_arriving: "span.text-blue"
+    availability_out_of_stock: "span.text-red"
+    pagination_param: "page"
+    pagination_links: "a[href*='?p=']"
+
+  product_page:
+    title: "h1 span.base"
+    product_id: "input[name='product']"
+    price: ".final-price .price"
+    price_fallback: "[data-price-type='finalPrice'] .price"
+    price_meta: "meta[itemprop='price']"
+    old_price: ".old-price .price"
+    old_price_fallback: "[data-price-type='oldPrice'] .price"
+    availability: "span.text-green-500, span.text-blue, span.text-red"
+    images: "img[src*='media/catalog/product']"
+    specs_table: "table.additional-attributes tbody tr"
+    specs_key: "th"
+    specs_value: "td"

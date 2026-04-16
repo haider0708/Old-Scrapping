@@ -1,0 +1,57 @@
+# SpaceNet.tn Scraper Configuration
+site_name: "spacenet"
+base_url: "https://www.spacenet.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    menu_container: "#desktop-header #sp-vermegamenu > ul"
+    menu_container_fallback: "#sp-vermegamenu > ul"
+    top_level_link: "a"
+    top_level_name: "span"
+    low_level_container: "div > ul"
+    subcategory_container: "div > ul"
+
+  category_page:
+    grid_container: "#box-product-grid"
+    item_selector: ".js-product-miniature, .product-miniature"
+    product_id_attr: "data-id-product"
+    product_link: "a.thumbnail.product-thumbnail, a.product-thumbnail"
+    product_title: "h2.product_name a, .product_name a"
+    product_price: ".product-price-and-shipping .price"
+    product_old_price: ".product-price-and-shipping .regular-price"
+    product_availability: ".product-quantities .label"
+    product_image: ".left-product .thumbnail.product-thumbnail .cover_image img, .thumbnail.product-thumbnail .cover_image img"
+    product_image_fallback: "img.img-responsive, .product_image"
+    pagination_next: "a.next.js-search-link"
+    pagination_links: ".page-list li a.js-search-link"
+    pagination_current: ".page-list li.current a"
+    pagination_param: "page"
+
+  product_page:
+    product_right: "#main .product_right, .product_right"
+    title: "h1"
+    title_fallback: "h1.h1, h1[itemprop='name']"
+    product_id_pattern: "/(\\d+)-"
+    sku: ".product-reference span"
+    brand_img: ".product-manufacturer img"
+    brand_text: ".product-manufacturer"
+    price: ".current-price .price, [itemprop='price'], .product-price"
+    old_price: ".regular-price, .old-price"
+    store_container: ".social-sharing-magasin .magasin-table"
+    store_bloc: ".table-bloc"
+    store_name: ".left-side span"
+    store_status: ".right-side span"
+    store_available_icon: ".fa-check"
+    availability_fallback: "#product-availability span, #product-availability"
+    overview: ".product-description-short"
+    overview_fallback: "#product-description-short, #description .product-description, .product-description"
+    specs_container: "#product-details > section, .product-features, .data-sheet"
+    product_left: "#main .product_left, .product_left"
+    main_image: "img"
+    main_image_large: "data-image-large-src"
+    gallery_images: ".product-images img, .js-thumb img, .thumb-container img"

@@ -1,0 +1,52 @@
+# Darty.tn Scraper Configuration
+site_name: "darty"
+base_url: "https://www.darty.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    nav_container: "ul.globomenu-tab-links"
+    tab_content: "li.globomenu-tab-content"
+    top_level_item_prefix: "#globomenu-item-"
+    top_category_ids: [134, 135, 160, 161, 162, 163, 165, 167]
+    low_level_blocks: "li.globomenu-item-header"
+    subcategory_blocks: "li.globomenu-item-normal"
+    standalone_low_headers: ["globomenu-item-303"]
+
+  category_page:
+    item_selector: "article.product-miniature"
+    product_id_attr: "data-id-product"
+    product_link: "div.product-description h3 a"
+    product_title: "div.product-description h3 a"
+    product_price: "[itemprop='price']"
+    product_old_price: ".regular-price"
+    product_availability: "span.texte-panier"
+    product_availability_link: "link[itemprop='availability']"
+    product_image: "img.center-block.img-responsive, .product-image img, img[data-src]"
+    pagination_container: "#pagination-main"
+    pagination_next: "a.next.js-search-link"
+    pagination_param: "page"
+
+  product_page:
+    title: ".product-description h1"
+    title_fallback: "h1[itemprop='name']"
+    title_fallback2: "div.productblock-image h1"
+    brand: "img.manufacturer-logo"
+    brand_fallback: ".product-manufacturer img"
+    brand_attr: "alt"
+    price: "div.product-price span"
+    price_fallback: "[itemprop='price']"
+    old_price: "div.product-discount .regular-price"
+    availability: "span.texte-panier"
+    availability_link: "link[itemprop='availability']"
+    stock_fallback: "#product-availability, .product-availability, .stock-availability"
+    specs_container: "#product-details dl.data_sheet"
+    specs_features: "div.productblock-features dl.data_sheet"
+    specs_key: "dt.name"
+    specs_value: "dd.value"
+    main_image: ".product-cover img"
+    gallery_images: ".product-images img, .js-thumb img, .thumb-container img"

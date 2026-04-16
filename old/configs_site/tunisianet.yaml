@@ -1,0 +1,51 @@
+# Tunisianet.com.tn Scraper Configuration
+site_name: "tunisianet"
+base_url: "https://www.tunisianet.com.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    top_level_blocks: "li.level-1.parent"
+    top_level_name: "div.icon-drop-mobile span"
+    low_level_blocks: ".menu-item.item-header"
+    subcategory_blocks: ".menu-item.item-line"
+
+  category_page:
+    item_selector: ".item-product"
+    product_id_container: "article[data-id-product]"
+    product_id_attr: "data-id-product"
+    product_link: "a.product-thumbnail"
+    product_title: ".product-title a"
+    product_price: ".product-price-and-shipping .price"
+    product_old_price: ".product-price-and-shipping .regular-price"
+    product_availability: ".product-availability span"
+    product_availability_fallback: "[id*='stock'] span"
+    product_image: "a.thumbnail.product-thumbnail.first-img img.center-block.img-responsive, a.product-thumbnail img.center-block.img-responsive"
+    product_image_container: ".wb-image-block"
+    pagination_next: "a.next"
+    pagination_links: ".pagination a"
+    pagination_current: ".pagination .current"
+    pagination_param: "page"
+
+  product_page:
+    title: "h1.h1"
+    title_fallback: "h1[itemprop='name']"
+    product_id_pattern: "/(\\d+)-"
+    sku: ".product-reference span"
+    brand_img: ".product-manufacturer img"
+    price: "[itemprop='price']"
+    old_price: ".regular-price"
+    overview_pattern: "#product-description-short-{product_id}"
+    description: "#description .product-description"
+    stock_availability: "#stock_availability"
+    store_availability: "#product-availability-store-mobile"
+    store_names: ".stores .store-availability"
+    specs_container: ".product-features, .data-sheet"
+    specs_key: "dt.name"
+    specs_value: "dd.value"
+    main_image: ".product-cover img"
+    gallery_images: ".product-images img, .images-container img, .thumb-container img"

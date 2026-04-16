@@ -1,0 +1,60 @@
+# Technopro-Online.com Scraper Configuration
+site_name: "technopro"
+base_url: "https://www.technopro-online.com"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    top_level_blocks: "li[id*='cbp-hrmenu-tab']"
+    top_level_link: "a.nav-link"
+    submenu: ".cbp-hrsub"
+    low_level_columns: ".cbp-menu-column"
+    low_level_header_span: "strong span"
+    low_level_header_link: "strong a"
+    subcategory_links: "ul li a"
+
+  category_page:
+    item_selector: "article.product-miniature"
+    item_fallback: "[data-id-product]"
+    product_id_attr: "data-id-product"
+    product_link: "a.product-thumbnail"
+    product_link_fallback: ".thumbnail-container a, .product-title a, a"
+    product_title: ".product-title a"
+    product_title_fallback: ".product-title, h2 a, h3 a"
+    product_price: ".product-price-and-shipping .product-price"
+    product_old_price: ".product-price-and-shipping .regular-price"
+    product_availability: ".product-availability span"
+    product_image: "a.thumbnail.product-thumbnail img.product-thumbnail-first:not([src*='svg']), a.product-thumbnail img:first-child:not([src*='svg'])"
+    product_image_fallback: "a.thumbnail.product-thumbnail img:not([src*='svg']), a.product-thumbnail img:not([src*='svg'])"
+    pagination_container: ".pagination"
+    pagination_next: "a.next, a[rel='next']"
+    pagination_links: "a, li"
+    pagination_current: ".current, .active"
+    pagination_param: "page"
+
+  product_page:
+    title: "h1.h1"
+    title_fallback: "h1[itemprop='name'], h1.product-name, h1"
+    product_id_pattern: "[\\-/](\\d+)[\\-\\.]"
+    product_id_attr: "[data-id-product]"
+    sku: ".product-reference span"
+    sku_fallback: "[itemprop='sku']"
+    brand: "[itemprop='brand'] span"
+    brand_fallback: ".product-manufacturer span, .product-manufacturer img"
+    overview: "#product-description-short"
+    overview_fallback: ".product-description-short, #description .product-description, .product-description"
+    price_container: ".product-price-and-shipping"
+    price: ".product-price"
+    price_fallback: ".product-price[content], [itemprop='price']"
+    old_price: ".regular-price"
+    availability_container: ".product-availability"
+    availability_span: "span"
+    availability_fallback: "#product-availability, .product-availability"
+    images: ".product-lmage-large img, .product-cover img"
+    specs_container: ".product-features, .data-sheet, .product-information"
+    specs_names: "dt.name"
+    specs_values: "dd.value"

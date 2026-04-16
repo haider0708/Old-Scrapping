@@ -1,0 +1,66 @@
+services:
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: haider0807/retails-scraper:latest
+    container_name: retails
+    restart: unless-stopped
+
+    # ── Environment ─────────────────────────────────────────────
+    env_file:
+      - .env
+    environment:
+      PIPELINE_INTERVAL: ${PIPELINE_INTERVAL:-720}
+      PIPELINE_WORKERS: ${PIPELINE_WORKERS:-16}
+      PIPELINE_DETAIL_WORKERS: ${PIPELINE_DETAIL_WORKERS:-16}
+      # Chromium needs a display; Xvfb provides it inside the container
+      DISPLAY: ":99"
+
+    # ── Persistent storage ───────────────────────────────────────
+    volumes:
+      - retails_data:/app/data
+      - retails_logs:/app/logs
+
+    # ── Resource limits (adjust to your host) ───────────────────
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+    # ── Healthcheck: heartbeat file updated each pipeline cycle ──
+    healthcheck:
+      test: ["CMD-SHELL",
+             "test -f /app/logs/.heartbeat && \
+              [ $(( $(date +%s) - $(stat -c %Y /app/logs/.heartbeat) )) -lt 3600 ] \
+              || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+    # ── Logging: rotate so disk doesn't fill up ──────────────────
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    # ── Security hardening ───────────────────────────────────────
+    security_opt:
+      - no-new-privileges:true
+    # Chromium sandbox requires SYS_ADMIN or --no-sandbox flag.
+    # We use --no-sandbox via Playwright's launch args instead,
+    # so we do NOT need cap_add: SYS_ADMIN.
+    cap_drop:
+      - ALL
+
+volumes:
+  retails_data:
+    driver: local
+  retails_logs:
+    driver: local

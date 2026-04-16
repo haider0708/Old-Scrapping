@@ -1,0 +1,62 @@
+# Mytek.tn Scraper Configuration (Playwright-based)
+site_name: "mytek"
+base_url: "https://www.mytek.tn"
+
+settings:
+  max_retries: 3
+  retry_delay: 5
+  page_timeout: 60000
+  wait_after_load: 2
+  request_timeout: 30
+
+selectors:
+  frontpage:
+    top_level_blocks: "li.rootverticalnav.category-item"
+    low_level_blocks: ".grid-item-6.clearfix"
+    low_level_link: ".title_normal > a"
+    subcategory_blocks: ".level3-popup li.category-item"
+    subcategory_link: "a.clearfix"
+    subcategory_title: ".level3-name"
+
+  category_page:
+    wait_selector: ".product-container"
+    item_selector: ".d-flex.justify-content-center.col-lg-3.col-md-4.col-sm-6.col-12.mb-4"
+    product_container: ".product-container"
+    product_id_attr: "data-product-id"
+    product_link: "a[href]"
+    product_title: ".product-item-link, .product-item-name a, .product-title-text, .product-name, h1 a, h2 a"
+    product_availability: ".availability .stock"
+    product_price_box: ".price-box"
+    product_final_price: ".final-price"
+    product_original_price: ".original-price"
+    pagination_current: ".page-item.active .page-link, .current"
+    pagination_links: ".page-item .page-link, .pages li a"
+    pagination_param: "p"
+
+  product_page:
+    title: ".page-title-wrapper h1 span.base"
+    product_id: "[data-product-id]"
+    sku: ".product.attribute.sku .value"
+    overview: ".product.attribute.overview .value"
+    overview_fallback: "#description .product-description, .product-description"
+    brand_img: ".product-info-stock-sku a img"
+    price_meta: "meta[itemprop='price']"
+    old_price: ".old-price [data-price-type='oldPrice']"
+    old_price_attr: "data-price-amount"
+    stock_status: "[data-role='stockStatus']"
+    stock_available: ".stock.available"
+    stock_unavailable: ".stock.unavailable"
+    stock_backorder: ".stock.unavailable_backorder"
+    availability_itemprop: "[itemprop='availability']"
+    store_table: ".tab_retrait_mag"
+    store_rows: "tbody tr"
+    store_name_cell: "td.mag_name a"
+    store_status_cell: "td span"
+    specs_table: "#product-attribute-specs-table"
+    specs_rows: "tbody tr"
+    specs_label: "th.label"
+    specs_data: "td.data"
+    gallery_carousel: "#gallery-container .carousel-item img"
+    gallery_itemprop: "img[itemprop='image']"
+    gallery_container: "#gallery-container img, .product-media-gallery img"
+    main_image: ".product.media img, .fotorama__stage img, .product-image-container img"

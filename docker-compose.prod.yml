@@ -1,0 +1,69 @@
+# ── Production compose for the REMOTE PC ─────────────────────────────────────
+# No build needed — pulls the pre-built image from Docker Hub.
+#
+# Usage:
+#   1. Copy this file + .env.example to the remote machine
+#   2. cp .env.example .env   (edit values if needed)
+#   3. docker compose -f docker-compose.prod.yml up -d
+#   4. docker compose -f docker-compose.prod.yml logs -f
+
+services:
+  scraper:
+    image: haider0807/retails-scraper:latest
+    container_name: retails
+    restart: unless-stopped
+    pull_policy: always          # always pull the latest tag on each up
+
+    # ── Environment ─────────────────────────────────────────────
+    env_file:
+      - .env
+    environment:
+      PIPELINE_INTERVAL: ${PIPELINE_INTERVAL:-720}
+      PIPELINE_WORKERS: ${PIPELINE_WORKERS:-16}
+      PIPELINE_DETAIL_WORKERS: ${PIPELINE_DETAIL_WORKERS:-16}
+      DISPLAY: ":99"
+
+    # ── Persistent storage ───────────────────────────────────────
+    volumes:
+      - retails_data:/app/data
+      - retails_logs:/app/logs
+
+    # ── Resource limits (adjust to your host) ───────────────────
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+    # ── Healthcheck: heartbeat file updated each pipeline cycle ──
+    healthcheck:
+      test: ["CMD-SHELL",
+             "test -f /app/logs/.heartbeat && \
+              [ $(( $(date +%s) - $(stat -c %Y /app/logs/.heartbeat) )) -lt 3600 ] \
+              || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+    # ── Logging: rotate so disk doesn't fill up ──────────────────
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    # ── Security hardening ───────────────────────────────────────
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  retails_data:
+    driver: local
+  retails_logs:
+    driver: local

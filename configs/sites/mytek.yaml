@@ -1,0 +1,97 @@
+# ============================================================
+# Mytek.tn Scraper Configuration
+# ============================================================
+# Site: https://www.mytek.tn (Tunisian E-commerce)
+# Platform: Magento-based with JavaScript-rendered product listings
+
+site_name: "mytek"
+base_url: "https://www.mytek.tn"
+
+# === SCRAPER SETTINGS ===
+settings:
+  max_retries: 3
+  retry_delay: 5          # seconds, will use exponential backoff
+  max_consecutive_failures: 10
+  page_timeout: 60000     # milliseconds
+  wait_after_load: 2      # seconds to wait after page loads
+
+# === SELECTORS ===
+selectors:
+  # --- FRONTPAGE (Category Hierarchy) ---
+  frontpage:
+    # Top-level categories (14 total): INFORMATIQUE, GAMING, TELEPHONIE, etc.
+    top_level_blocks: "li.rootverticalnav.category-item"
+    top_level_title: "> a"
+    
+    # Low-level categories within each top-level
+    low_level_blocks: ".grid-item-6.clearfix"
+    low_level_title: ".title_normal > a"
+    low_level_link: ".title_normal > a"
+    
+    # Subcategories (deepest level)
+    subcategory_blocks: ".level3-popup li.category-item"
+    subcategory_title: ".level3-name"
+    subcategory_link: "a.clearfix"
+
+  # --- CATEGORY PAGE (Product Listings) ---
+  category_page:
+    # Element to wait for (indicates products loaded)
+    wait_selector: ".product-container"
+    
+    # Product item container
+    item_selector: ".d-flex.justify-content-center.col-lg-3.col-md-4.col-sm-6.col-12.mb-4"
+    
+    # Within each item:
+    product_id_attr: "data-product-id"
+    product_container: ".product-container"
+    product_link_style: "display: flex"  # Link has this style
+    product_title: ".product-title-text, .product-name, h2, h3"
+    
+    # Pagination
+    pagination_active: ".page-item.active .page-link, .current"
+    pagination_links: ".page-item .page-link, .pages li a"
+    
+    # URL pattern for pagination
+    pagination_param: "p"  # ?p=2, ?p=3, etc.
+
+  # --- PRODUCT PAGE (Detail Scraping) ---
+  product_page:
+    # Title (page-title-wrapper)
+    title: ".page-title-wrapper h1 span.base"
+    
+    # SKU and Stock (product-info-stock-sku)
+    sku: ".product.attribute.sku .value"
+    stock_status: ".product-info-stock-sku .stock"
+    brand_logo: ".product-info-stock-sku a img"
+    
+    # Overview/Description
+    overview: ".product.attribute.overview .value, #description .product-description, .product-description"
+    description: "#description .product-description, .product-description"
+    
+    # Pricing (product-info-price) - uses data attributes
+    price_wrapper: "[data-price-type='finalPrice']"
+    price_attr: "data-price-amount"
+    old_price_wrapper: "[data-price-type='oldPrice']"
+    discount_badge: ".discount-price"
+    
+    # Specifications table (product info detailed)
+    specs_table: "#product-attribute-specs-table"
+    specs_row: "tbody tr"
+    specs_label: "th.label"
+    specs_value: "td.data"
+    
+    # Images
+    main_image: "[itemprop='image']"
+    gallery_images: ".fotorama__thumb img, .gallery img"
+    
+    # Store availability
+    store_table: ".tab_retrait_mag tr"
+    store_name: ".mag_name a"
+    store_status: ".stock-status-placeholder"
+
+# === NOTES ===
+# - Products are loaded via JavaScript, requires Playwright
+# - 48 products per page typical
+# - Pagination uses ?p=N query parameter
+# - Prices loaded via JS, use data-price-amount attribute
+# - Product details fully loaded after ~2s wait
