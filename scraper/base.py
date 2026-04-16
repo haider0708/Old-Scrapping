@@ -512,34 +512,37 @@ class BaseScraper(ABC):
     # === Implemented Methods ===
     
     async def download_frontpage(self) -> Path:
-        """Download frontpage HTML with retry logic."""
+        """Download frontpage HTML using Playwright (JS rendering required).
+
+        BaseScraper sites (Mytek, etc.) have JavaScript-rendered menus
+        that httpx can't see, so we use a real browser here.
+        """
         output_path = self.html_dir / "frontpage.html"
         
-        headers = random_headers()
+        self.logger.info(f"📥 Downloading (Playwright): {self.base_url}")
         
-        self.logger.info(f"📥 Downloading: {self.base_url}")
-        
-        # Create the client once outside the retry closure so the same TCP
-        # connection is reused across retries rather than reconnecting each time.
         pool = TorPool.get()
         slot = await pool.next_slot() if pool.active else 0
-        async with httpx.AsyncClient(
-            headers=headers,
-            follow_redirects=True,
-            timeout=self.request_timeout,
-            proxy=pool.proxy_url(slot),
-        ) as client:
-            async def fetch():
-                response = await client.get(self.base_url)
-                response.raise_for_status()
-                return response.text
 
-            html = await retry_async(
-                fetch,
-                self.retry_config,
-                self.logger,
-                "Download frontpage"
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=playwright_launch_args(),
             )
+            ctx = await browser.new_context(
+                user_agent=random_ua(),
+                proxy=pool.pw_proxy(slot),
+            )
+            page = await ctx.new_page()
+            try:
+                await page.goto(self.base_url, wait_until="networkidle", timeout=self.page_timeout)
+                # Give JS menu time to render
+                await asyncio.sleep(self.wait_after_load)
+                html = await page.content()
+            finally:
+                await page.close()
+                await ctx.close()
+                await browser.close()
         
         output_path.write_text(html, encoding="utf-8")
         self.logger.info(f"✓ Saved: {output_path} ({len(html):,} bytes)")
