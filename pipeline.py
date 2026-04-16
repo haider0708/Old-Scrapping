@@ -23,7 +23,7 @@ from dataclasses import dataclass, asdict
 import yaml
 
 from scraper.base import LOGS_DIR
-from scraper.base import rotate_tor_ip
+from scraper.base import rotate_tor_ip, TorPool
 from scrape import run_full_scrape, setup_logger
 from track_history import track_history_for_shop
 
@@ -68,12 +68,13 @@ class SimplePipeline:
 
     def __init__(
         self,
-        sites: List[str],
+        sites: List[Dict],
         data_dir: str = "data",
         interval_minutes: int = 720,
         workers: int = 16,
         detail_workers: int = 16
     ):
+        # sites is now a list of dicts: [{"name": "mytek", "use_tor": False}, ...]
         self.sites = sites
         self.data_dir = Path(data_dir)
         self.interval_minutes = interval_minutes
@@ -187,27 +188,34 @@ class SimplePipeline:
         self.logger.info(f"\n{'='*70}")
         self.logger.info("🚀 PIPELINE STARTED")
         self.logger.info(f"{'='*70}")
-        self.logger.info(f"  Sites   : {', '.join(self.sites)}")
+        site_names = [s["name"] for s in self.sites]
+        self.logger.info(f"  Sites   : {', '.join(site_names)}")
         self.logger.info(f"  Mode    : {mode}")
         self.logger.info(f"  Retries : {SITE_MAX_RETRIES} per site")
         self.logger.info(f"  Timeout : {SITE_TIMEOUT}s per site")
         self.logger.info(f"  Started : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+        pool = TorPool.get()
+
         while True:
             run_start = datetime.now()
             self.run_stats = {}
 
-            for site in self.sites:
+            for site_cfg in self.sites:
+                site = site_cfg["name"]
+                use_tor = site_cfg.get("use_tor", False)
+                pool.activate(use_tor)
                 try:
-                    await rotate_tor_ip(self.logger)
+                    if use_tor:
+                        await rotate_tor_ip(self.logger)
                     await self._process_site(site)
                 except Exception as e:
-                    # Belt-and-suspenders: _process_site should never raise,
-                    # but if it does, log and continue to the next site.
                     self.logger.critical(
                         f"  💥 Unhandled exception for {site}: {e}\n"
                         + traceback.format_exc()
                     )
+                finally:
+                    pool.activate(False)
                 await asyncio.sleep(2)
 
             duration_str = str(datetime.now() - run_start).split(".")[0]
@@ -218,10 +226,10 @@ class SimplePipeline:
             self.logger.info(f"{'='*70}")
             self.logger.info(f"  Duration : {duration_str}")
             self.logger.info(f"  Sites    : {len(self.sites)}")
-            for site, st in self.run_stats.items():
+            for site_name, st in self.run_stats.items():
                 icon = "✅" if st.success else "❌"
                 self.logger.info(
-                    f"    {icon} {site}: {st.products_total} products, "
+                    f"    {icon} {site_name}: {st.products_total} products, "
                     f"{st.details_scraped} details"
                     + (f" | {st.error}" if not st.success else "")
                 )
@@ -233,15 +241,16 @@ class SimplePipeline:
                 self.logger.info(f"\n{'='*70}")
                 self.logger.info("🔄 PRICE HISTORY TRACKING")
                 self.logger.info(f"{'='*70}")
-                for site in self.sites:
-                    if self.run_stats.get(site) and self.run_stats[site].success:
+                for site_cfg in self.sites:
+                    site_name = site_cfg["name"]
+                    if self.run_stats.get(site_name) and self.run_stats[site_name].success:
                         try:
-                            self.logger.info(f"  Tracking history for {site}...")
-                            track_history_for_shop(site)
-                            self.logger.info(f"  ✅ History tracked for {site}")
+                            self.logger.info(f"  Tracking history for {site_name}...")
+                            track_history_for_shop(site_name)
+                            self.logger.info(f"  ✅ History tracked for {site_name}")
                         except Exception as e:
                             self.logger.error(
-                                f"  ❌ History tracking failed for {site}: {e}\n"
+                                f"  ❌ History tracking failed for {site_name}: {e}\n"
                                 + traceback.format_exc()
                             )
             else:
@@ -270,8 +279,18 @@ def load_config(config_path: str = "configs/pipeline_config.yaml") -> dict:
 def create_pipeline(config_path: str = "configs/pipeline_config.yaml") -> SimplePipeline:
     config = load_config(config_path)
     scraping_config = config.get("scraping", {})
+
+    # Normalize sites: support both old ["mytek", ...] and new [{"name": "mytek", ...}]
+    raw_sites = config.get("sites", [])
+    sites = []
+    for entry in raw_sites:
+        if isinstance(entry, str):
+            sites.append({"name": entry, "use_tor": False})
+        elif isinstance(entry, dict):
+            sites.append({"name": entry["name"], "use_tor": entry.get("use_tor", False)})
+
     return SimplePipeline(
-        sites=config.get("sites", []),
+        sites=sites,
         data_dir=config.get("data_dir", "data"),
         interval_minutes=config.get("interval_minutes", 720),
         workers=scraping_config.get("workers", 16),
@@ -294,7 +313,7 @@ async def main():
     if args.cmd == "run":
         pipeline = create_pipeline(args.config)
         if args.sites:
-            pipeline.sites = args.sites
+            pipeline.sites = [{"name": s, "use_tor": False} for s in args.sites]
         if args.interval:
             pipeline.interval_minutes = args.interval
         await pipeline.run(continuous=not args.once)

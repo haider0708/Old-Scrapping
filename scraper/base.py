@@ -27,6 +27,8 @@ import yaml
 from selectolax.parser import HTMLParser
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 
+from scraper.stealth import random_headers, random_ua, random_delay
+
 
 # === Configuration ===
 BASE_DIR = Path(__file__).parent.parent
@@ -83,6 +85,9 @@ class TorPool:
     Workers are round-robin assigned to instances so concurrent requests
     exit through different IPs.  Every TOR_ROTATE_EVERY requests the
     instance's circuit is rotated via NEWNYM.
+
+    Per-site control: call ``activate(True/False)`` before scraping each
+    site.  When deactivated, proxy helpers return None (direct connection).
     """
 
     _instance: Optional["TorPool"] = None
@@ -92,12 +97,21 @@ class TorPool:
         self._counter = 0
         self._lock = asyncio.Lock()
         self._req_counts = [0] * max(self.size, 1)
+        self._active = False  # per-site toggle
 
     @classmethod
     def get(cls) -> "TorPool":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    def activate(self, on: bool):
+        """Enable/disable Tor for the current site."""
+        self._active = on and USE_TOR and self.size > 0
+
+    @property
+    def active(self) -> bool:
+        return self._active
 
     def socks_port(self, slot: int) -> int:
         return TOR_SOCKS_PORT + (slot % self.size) * 2
@@ -106,12 +120,12 @@ class TorPool:
         return TOR_CONTROL_PORT + (slot % self.size) * 2
 
     def proxy_url(self, slot: int) -> Optional[str]:
-        if not USE_TOR:
+        if not self._active:
             return None
         return f"socks5://127.0.0.1:{self.socks_port(slot)}"
 
     def pw_proxy(self, slot: int) -> Optional[dict]:
-        if not USE_TOR:
+        if not self._active:
             return None
         return {"server": f"socks5://127.0.0.1:{self.socks_port(slot)}"}
 
@@ -123,7 +137,7 @@ class TorPool:
 
     async def track_request(self, slot: int, logger: logging.Logger = None):
         """Increment counter for *slot*; rotate its circuit at threshold."""
-        if not USE_TOR:
+        if not self._active:
             return
         idx = slot % self.size
         self._req_counts[idx] += 1
@@ -133,7 +147,7 @@ class TorPool:
 
     async def rotate_all(self, logger: logging.Logger = None):
         """Rotate every Tor instance to a fresh circuit."""
-        if not USE_TOR:
+        if not USE_TOR or self.size == 0:
             return
         for i in range(self.size):
             await self._send_newnym(i, logger)
@@ -165,16 +179,12 @@ class TorPool:
 
 # ── Thin wrappers kept for backwards compatibility with site scrapers ─
 def get_tor_proxy_url() -> Optional[str]:
-    """Return a SOCKS5 proxy URL (slot 0). Site scrapers use this."""
-    if not USE_TOR:
-        return None
+    """Return a SOCKS5 proxy URL (slot 0) if Tor is active for current site."""
     return TorPool.get().proxy_url(0)
 
 
 def get_playwright_proxy() -> Optional[dict]:
-    """Return Playwright proxy dict (slot 0). Site scrapers use this."""
-    if not USE_TOR:
-        return None
+    """Return Playwright proxy dict (slot 0) if Tor is active for current site."""
     return TorPool.get().pw_proxy(0)
 
 
@@ -505,16 +515,14 @@ class BaseScraper(ABC):
         """Download frontpage HTML with retry logic."""
         output_path = self.html_dir / "frontpage.html"
         
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
+        headers = random_headers()
         
         self.logger.info(f"📥 Downloading: {self.base_url}")
         
         # Create the client once outside the retry closure so the same TCP
         # connection is reused across retries rather than reconnecting each time.
         pool = TorPool.get()
-        slot = await pool.next_slot() if USE_TOR else 0
+        slot = await pool.next_slot() if pool.active else 0
         async with httpx.AsyncClient(
             headers=headers,
             follow_redirects=True,
@@ -740,12 +748,8 @@ class FastScraper(ABC):
         self.max_retries = self.retry_config.max_retries
         self.retry_delay = self.retry_config.base_delay
         
-        # HTTP client headers
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-        }
+        # HTTP client headers — randomised per session to avoid fingerprinting
+        self.headers = random_headers()
         
         # Base data directory
         self._base_data_dir = DATA_DIR / site_name
@@ -783,8 +787,8 @@ class FastScraper(ABC):
     async def get_client(self, slot: int = 0) -> httpx.AsyncClient:
         """Get or create HTTP client for a given Tor slot."""
         pool = TorPool.get()
-        proxy = pool.proxy_url(slot) if USE_TOR else None
-        key = slot if USE_TOR else 0
+        proxy = pool.proxy_url(slot)
+        key = slot if pool.active else -1
         if key not in self._clients or self._clients[key].is_closed:
             self._clients[key] = httpx.AsyncClient(
                 headers=self.headers,
@@ -822,10 +826,12 @@ class FastScraper(ABC):
             HTML content or None on failure
         """
         pool = TorPool.get()
-        slot = await pool.next_slot() if USE_TOR else 0
+        slot = await pool.next_slot() if pool.active else 0
         client = await self.get_client(slot)
         # Auto-rotate circuit after every TOR_ROTATE_EVERY requests
         await pool.track_request(slot, self.logger)
+        # Human-like delay between requests to avoid rate-limiting
+        await asyncio.sleep(random_delay(0.3, 1.5))
         last_exception = None
         
         for attempt in range(1, self.retry_config.max_retries + 1):
