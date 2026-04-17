@@ -29,9 +29,9 @@ def _unraisable_hook(unraisable):
         for phrase in ("I/O operation on closed pipe", "Event loop is closed")
     ):
         return  # silently ignore Playwright subprocess cleanup noise
-    # Suppress TargetClosedError from dangling Playwright futures on timeout
-    exc_name = type(unraisable.exc_value).__name__ if unraisable.exc_value else ""
-    if exc_name in ("TargetClosedError", "Error") and "Target closed" in str(unraisable.exc_value):
+    # Suppress Playwright cleanup noise from dangling futures on timeout
+    exc_str = str(unraisable.exc_value) if unraisable.exc_value else ""
+    if any(phrase in exc_str for phrase in ("Target closed", "Target page, context or browser", "net::ERR_ABORTED", "frame was detached")):
         return
     _orig_unraisablehook(unraisable)
 
@@ -308,8 +308,10 @@ async def run_full_scrape(site_name, num_workers=16, detail_workers=16, limit=No
     _prev_handler = loop.get_exception_handler()
     def _quiet_handler(l, ctx):
         exc = ctx.get("exception")
-        if exc and "Target closed" in str(exc):
-            return
+        if exc:
+            exc_str = str(exc)
+            if any(p in exc_str for p in ("Target closed", "Target page, context or browser", "net::ERR_ABORTED", "frame was detached")):
+                return
         if _prev_handler:
             _prev_handler(l, ctx)
         else:

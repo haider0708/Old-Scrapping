@@ -410,12 +410,11 @@ class SbsScraper(BaseScraper):
         wait_sel = pp.get("wait_selector", "div.current-price span.price")
 
         try:
-            await page.goto(product_url, wait_until="networkidle", timeout=30000)
+            await page.goto(product_url, wait_until="domcontentloaded", timeout=15000)
             try:
-                await page.wait_for_selector(wait_sel, timeout=10000)
+                await page.wait_for_selector(wait_sel, timeout=3000)
             except Exception:
                 pass
-            await asyncio.sleep(self.wait_after_load)
         except Exception as e:
             return {"url": product_url, "error": str(e)}
 
